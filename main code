@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Void Cleaner - Stealth Action</title>
+
+<style>
+:root {
+    --neon-blue: #00f2ff;
+    --neon-red: #ff0044;
+    --neon-green: #39ff14;
+    --bg-dark: #050505;
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg-dark);
+    color: white;
+    font-family: 'Segoe UI', sans-serif;
+    overflow: hidden;
+}
+
+canvas { display:block; }
+
+.overlay {
+    position:absolute;
+    width:100%;
+    height:100%;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    background:rgba(0,0,0,0.85);
+}
+
+.hidden { display:none; }
+
+button {
+    padding:15px 40px;
+    background:transparent;
+    border:2px solid var(--neon-blue);
+    color:var(--neon-blue);
+    cursor:pointer;
+}
+</style>
+</head>
+<body>
+
+<div id="menu" class="overlay">
+    <h1>VOID CLEANER</h1>
+    <button onclick="startGame()">Start Mission</button>
+</div>
+
+<canvas id="game"></canvas>
+
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+function resize(){
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+}
+window.addEventListener("resize", resize);
+resize();
+
+let gameState = "MENU";
+let animationId;
+
+const player = {
+    x:100,
+    y:100,
+    radius:12,
+    angle:0,
+    speed:3,
+    blinkDist:120,
+    blinkCooldown:0,
+    maxCooldown:120
+};
+
+let walls = [];
+let enemies = [];
+
+function startGame(){
+    document.getElementById("menu").classList.add("hidden");
+    gameState = "PLAYING";
+    createLevel();
+}
+
+function createLevel(){
+    walls = [];
+    enemies = [];
+
+    // Borders
+    walls.push({x:0,y:0,w:canvas.width,h:10});
+    walls.push({x:0,y:canvas.height-10,w:canvas.width,h:10});
+    walls.push({x:0,y:0,w:10,h:canvas.height});
+    walls.push({x:canvas.width-10,y:0,w:10,h:canvas.height});
+
+    // Random walls
+    for(let i=0;i<6;i++){
+        walls.push({
+            x:Math.random()*canvas.width,
+            y:Math.random()*canvas.height,
+            w:150,
+            h:20
+        });
+    }
+
+    // Enemy
+    enemies.push({
+        x:400,
+        y:300,
+        radius:12,
+        angle:0,
+        visionDist:250,
+        visionAngle:0.8
+    });
+}
+
+const keys = {};
+window.addEventListener("keydown",e=>keys[e.code]=true);
+window.addEventListener("keyup",e=>keys[e.code]=false);
+
+function update(){
+    if(gameState!=="PLAYING") return;
+
+    let dx=0, dy=0;
+
+    if(keys["KeyW"]) dy-=player.speed;
+    if(keys["KeyS"]) dy+=player.speed;
+    if(keys["KeyA"]) dx-=player.speed;
+    if(keys["KeyD"]) dx+=player.speed;
+
+    if(!checkWallCollision({x:player.x+dx,y:player.y,radius:player.radius}))
+        player.x+=dx;
+    if(!checkWallCollision({x:player.x,y:player.y+dy,radius:player.radius}))
+        player.y+=dy;
+
+    if(player.blinkCooldown>0) player.blinkCooldown--;
+
+    if(keys["ShiftLeft"]) attemptBlink();
+
+    enemies.forEach(e=>{
+        const dist = Math.hypot(player.x-e.x, player.y-e.y);
+        if(dist < e.visionDist){
+            alert("Captured!");
+            location.reload();
+        }
+    });
+}
+
+function draw(){
+    ctx.fillStyle="#050505";
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+
+    walls.forEach(w=>{
+        ctx.fillStyle="#151515";
+        ctx.fillRect(w.x,w.y,w.w,w.h);
+    });
+
+    enemies.forEach(e=>{
+        ctx.fillStyle="red";
+        ctx.beginPath();
+        ctx.arc(e.x,e.y,e.radius,0,Math.PI*2);
+        ctx.fill();
+    });
+
+    ctx.fillStyle="#00f2ff";
+    ctx.beginPath();
+    ctx.arc(player.x,player.y,player.radius,0,Math.PI*2);
+    ctx.fill();
+
+    animationId=requestAnimationFrame(()=>{
+        update();
+        draw();
+    });
+}
+
+function checkWallCollision(circle){
+    for(const w of walls){
+        const closestX = Math.max(w.x, Math.min(circle.x, w.x+w.w));
+        const closestY = Math.max(w.y, Math.min(circle.y, w.y+w.h));
+        const dx = circle.x-closestX;
+        const dy = circle.y-closestY;
+        if(dx*dx+dy*dy < circle.radius*circle.radius) return true;
+    }
+    return false;
+}
+
+function attemptBlink(){
+    if(player.blinkCooldown>0) return;
+
+    const targetX = player.x + Math.cos(player.angle)*player.blinkDist;
+    const targetY = player.y + Math.sin(player.angle)*player.blinkDist;
+
+    if(!checkWallCollision({x:targetX,y:targetY,radius:player.radius})){
+        player.x=targetX;
+        player.y=targetY;
+        player.blinkCooldown=player.maxCooldown;
+    }
+}
+
+draw();
+</script>
+</body>
+</html>
